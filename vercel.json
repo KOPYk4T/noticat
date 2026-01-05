@@ -1,0 +1,14 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/notion/:path*",
+      "destination": "/api/notion/:path*"
+    }
+  ],
+  "functions": {
+    "api/notion/[...path].ts": {
+      "runtime": "@vercel/node"
+    }
+  }
+}
+
