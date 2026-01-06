@@ -12,6 +12,7 @@ import { categories } from "../../shared/constants/categories";
 import { formatMoney } from "../../shared/utils";
 import { AccountSelectorModal } from "../complete/AccountSelectorModal";
 import { Button } from "../../components/Button";
+import { Trash } from "../../components/icons";
 import {
   uploadTransactionsToNotion,
   isNotionConfigured,
@@ -23,6 +24,7 @@ interface CategorizeScreenProps {
   slideDirection: "left" | "right";
   onCategoryChange: (index: number, category: string) => void;
   onRecurringChange: (index: number, isRecurring: boolean) => void;
+  onDelete: (index: number) => void;
   onPrev: () => void;
   onNext: () => void;
   onGoToIndex: (index: number) => void;
@@ -37,6 +39,7 @@ export const CategorizeScreen = ({
   slideDirection,
   onCategoryChange,
   onRecurringChange,
+  onDelete,
   onPrev,
   onNext,
   onGoToIndex,
@@ -331,6 +334,9 @@ export const CategorizeScreen = ({
                     <th className="px-4 py-3 text-center text-xs font-medium text-neutral-600 uppercase tracking-wider">
                       IA
                     </th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                      Acciones
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-neutral-100">
@@ -412,6 +418,18 @@ export const CategorizeScreen = ({
                         ) : (
                           <span className="text-sm text-neutral-300">—</span>
                         )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(index);
+                          }}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-md text-neutral-400 hover:text-red-600 hover:bg-red-50 transition-colors duration-200 cursor-pointer group"
+                          title="Eliminar transacción"
+                        >
+                          <Trash className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   ))}

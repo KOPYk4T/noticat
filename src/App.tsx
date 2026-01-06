@@ -17,6 +17,7 @@ function App() {
     handleFileSelect,
     handleCategoryChange,
     handleRecurringChange,
+    handleDelete,
     handleMassCategoryChange,
     handleMassRecurringChange,
     handleUploadSuccess,
@@ -45,6 +46,7 @@ function App() {
         slideDirection={slideDirection}
         onCategoryChange={handleCategoryChange}
         onRecurringChange={handleRecurringChange}
+        onDelete={handleDelete}
         onPrev={goPrev}
         onNext={goNext}
         onGoToIndex={goToIndex}
