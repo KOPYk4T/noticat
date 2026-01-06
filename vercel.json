@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/notion/[...path].ts": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  }
+}
