@@ -1,8 +1,13 @@
 {
   "functions": {
-    "api/notion/[...path].ts": {
+    "api/**/*.ts": {
       "memory": 1024,
       "maxDuration": 10
+    }
+  },
+  "build": {
+    "env": {
+      "ENABLE_VC_BUILD": "1"
     }
   }
 }
