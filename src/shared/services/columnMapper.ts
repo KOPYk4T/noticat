@@ -31,13 +31,13 @@ export const inferColumnMapping = (structure: FileStructure): MappingResult => {
   const cargoMatch = getBestMatch("cargo", headers);
   const abonoMatch = getBestMatch("abono", headers);
 
-  if (cargoMatch?.score >= 0.5) {
+if (cargoMatch && cargoMatch.score !== undefined && cargoMatch.score >= 0.5) {
     mapping.cargo = cargoMatch.columnName;
     totalConfidence += cargoMatch.score;
     matchedFields++;
   }
 
-  if (abonoMatch?.score >= 0.5) {
+if (abonoMatch && abonoMatch.score !== undefined && abonoMatch.score >= 0.5) {
     mapping.abono = abonoMatch.columnName;
     totalConfidence += abonoMatch.score;
     matchedFields++;

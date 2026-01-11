@@ -27,7 +27,8 @@ export const Select = ({ value, onChange, options, placeholder = "Seleccionar...
     opt.label.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  useClickOutside(containerRef, () => {
+  // useClickOutside expects RefObject<HTMLElement>, so we cast HTMLDivElement ref
+  useClickOutside(containerRef as React.RefObject<HTMLElement>, () => {
     setIsOpen(false);
     setSearchQuery('');
   }, isOpen);

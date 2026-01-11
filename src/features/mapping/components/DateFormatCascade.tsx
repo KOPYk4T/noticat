@@ -27,7 +27,8 @@ export const DateFormatCascade = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, left: 0 });
 
-  useClickOutside(containerRef, onClose, isOpen);
+  // useClickOutside expects RefObject<HTMLElement>, so we cast HTMLDivElement ref
+  useClickOutside(containerRef as React.RefObject<HTMLElement>, onClose, isOpen);
 
   useEffect(() => {
     if (isOpen && parentRef.current) {

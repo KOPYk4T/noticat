@@ -32,7 +32,8 @@ export const FieldMappingSelect = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const Icon = field.icon;
 
-  useClickOutside(containerRef, () => setIsOpen(false), isOpen);
+  // useClickOutside expects RefObject<HTMLElement>, so we cast HTMLDivElement ref
+  useClickOutside(containerRef as React.RefObject<HTMLElement>, () => setIsOpen(false), isOpen);
 
   const handleSelect = (option: string) => {
     onChange(option);
