@@ -42,20 +42,22 @@ export const UploadScreen = ({ onFileSelect }: UploadScreenProps) => {
     if (file && validateFile(file)) {
       onFileSelect(file);
     } else if (file) {
-        alert("Por favor, selecciona un archivo Excel (.xlsx, .xls) o CSV (.csv)");
+      alert(
+        "Por favor, selecciona un archivo Excel (.xlsx, .xls) o CSV (.csv)"
+      );
     }
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-8 font-sans">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8 font-sans">
       <div className="w-full max-w-2xl space-y-12 animate-[fadeUp_0.7s_cubic-bezier(0.16,1,0.3,1)]">
         <div className="text-center space-y-4">
-          <h1 className="text-6xl font-extralight tracking-[-0.02em] text-neutral-900">
-            FinanzIA
-          </h1>
-          <p className="text-neutral-500 font-light text-lg">
-            Sube tu archivo Excel para comenzar
-          </p>
+          <div className="flex items-center justify-center gap-4 mb-2">
+            <img src="/Noticat.svg" alt="Noticat" className="w-24 h-24" />
+            <h1 className="text-6xl font-extralight tracking-[-0.02em] text-neutral-900">
+              Noticat
+            </h1>
+          </div>
         </div>
 
         <input
@@ -121,4 +123,3 @@ export const UploadScreen = ({ onFileSelect }: UploadScreenProps) => {
     </div>
   );
 };
-
