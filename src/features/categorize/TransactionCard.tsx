@@ -8,6 +8,7 @@ interface TransactionCardProps {
   slideDirection: "left" | "right";
   onCategoryChange: (category: string) => void;
   onRecurringChange: (isRecurring: boolean) => void;
+  onTypeChange: (type: "cargo" | "abono") => void;
 }
 
 export const TransactionCard = ({
@@ -15,6 +16,7 @@ export const TransactionCard = ({
   slideDirection,
   onCategoryChange,
   onRecurringChange,
+  onTypeChange,
 }: TransactionCardProps) => {
   const animationClass =
     slideDirection === "right"
@@ -46,15 +48,16 @@ export const TransactionCard = ({
             <span className="text-sm text-neutral-400 font-light">
               {transaction.date}
             </span>
-            <span
-              className={`text-xs font-light px-2.5 py-1 rounded-full ${
+            <button
+              onClick={() => onTypeChange(transaction.type === "cargo" ? "abono" : "cargo")}
+              className={`text-xs font-light px-2.5 py-1 rounded-full cursor-pointer transition-all hover:scale-105 ${
                 transaction.type === "cargo"
-                  ? "bg-red-50 text-red-600"
-                  : "bg-green-50 text-green-600"
+                  ? "bg-red-50 text-red-600 hover:bg-red-100"
+                  : "bg-green-50 text-green-600 hover:bg-green-100"
               }`}
             >
               {transaction.type === "cargo" ? "Gasto" : "Ingreso"}
-            </span>
+            </button>
           </div>
         </div>
 

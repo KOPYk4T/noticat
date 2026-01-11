@@ -35,6 +35,8 @@ interface CategorizeScreenProps {
   onGoToIndex: (index: number) => void;
   onMassCategoryChange?: (ids: number[], category: string) => void;
   onMassRecurringChange?: (ids: number[], isRecurring: boolean) => void;
+  onMassTypeChange?: (ids: number[], type: "cargo" | "abono") => void;
+  onTypeChange?: (index: number, type: "cargo" | "abono") => void;
   onUploadSuccess?: (uploadedCount: number) => void;
 }
 
@@ -53,6 +55,8 @@ export const CategorizeScreen = ({
   onGoToIndex,
   onMassCategoryChange,
   onMassRecurringChange,
+  onMassTypeChange,
+  onTypeChange,
   onUploadSuccess,
 }: CategorizeScreenProps) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -95,6 +99,12 @@ export const CategorizeScreen = ({
     onRecurringChange(currentIndex, isRecurring);
   };
 
+  const handleTypeChange = (type: "cargo" | "abono") => {
+    if (onTypeChange) {
+      onTypeChange(currentIndex, type);
+    }
+  };
+
   // Marcar transacción como revisada cuando el usuario navega a ella (solo en vista normal)
   useEffect(() => {
     if (viewMode === "normal" && current) {
@@ -118,12 +128,15 @@ export const CategorizeScreen = ({
     setIsSearchOpen(false);
   };
 
-  const handleMassEditApply = (category?: string, isRecurring?: boolean) => {
+  const handleMassEditApply = (category?: string, isRecurring?: boolean, type?: "cargo" | "abono") => {
     if (category && onMassCategoryChange) {
       onMassCategoryChange(massEditIds, category);
     }
     if (isRecurring !== undefined && onMassRecurringChange) {
       onMassRecurringChange(massEditIds, isRecurring);
+    }
+    if (type && onMassTypeChange) {
+      onMassTypeChange(massEditIds, type);
     }
     setMassEditIds([]);
   };
@@ -309,6 +322,7 @@ export const CategorizeScreen = ({
               handleTableSelect(index);
             }, 50);
           }}
+          onTypeChange={onTypeChange}
           onMassEdit={onMassCategoryChange ? handleMassEdit : undefined}
           onMassDelete={onMassDelete ? handleMassDeleteFromSearch : undefined}
         />
@@ -371,7 +385,15 @@ export const CategorizeScreen = ({
                       <td className="px-4 py-3 text-sm text-neutral-900 font-normal">
                         {transaction.description}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium tabular-nums text-right">
+                      <td 
+                        className="px-4 py-3 whitespace-nowrap text-sm font-medium tabular-nums text-right cursor-pointer hover:bg-neutral-50 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onTypeChange) {
+                            onTypeChange(index, transaction.type === "cargo" ? "abono" : "cargo");
+                          }
+                        }}
+                      >
                         <span
                           className={
                             transaction.type === "cargo"
@@ -592,12 +614,13 @@ export const CategorizeScreen = ({
         {/* Content */}
         <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 pb-24">
           {current && (
-            <TransactionCard
-              transaction={current}
-              slideDirection={slideDirection}
-              onCategoryChange={handleCategoryChange}
-              onRecurringChange={handleRecurringChange}
-            />
+        <TransactionCard
+          transaction={current}
+          slideDirection={slideDirection}
+          onCategoryChange={handleCategoryChange}
+          onRecurringChange={handleRecurringChange}
+          onTypeChange={handleTypeChange}
+        />
           )}
         </div>
 

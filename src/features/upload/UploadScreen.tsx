@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Upload as UploadIcon } from "../../components/icons";
+import { validateFile } from "../../shared/utils/validationUtils";
 
 interface UploadScreenProps {
   onFileSelect: (file: File) => void;
@@ -8,16 +9,6 @@ interface UploadScreenProps {
 export const UploadScreen = ({ onFileSelect }: UploadScreenProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-
-  const validateFile = (file: File): boolean => {
-    return (
-      file.type ===
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-      file.type === "application/vnd.ms-excel" ||
-      file.name.endsWith(".xlsx") ||
-      file.name.endsWith(".xls")
-    );
-  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -28,9 +19,7 @@ export const UploadScreen = ({ onFileSelect }: UploadScreenProps) => {
     }
   };
 
-  const handleClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleClick = () => fileInputRef.current?.click();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -53,7 +42,7 @@ export const UploadScreen = ({ onFileSelect }: UploadScreenProps) => {
     if (file && validateFile(file)) {
       onFileSelect(file);
     } else if (file) {
-      alert("Por favor, selecciona un archivo Excel (.xls o .xlsx)");
+        alert("Por favor, selecciona un archivo Excel (.xlsx, .xls) o CSV (.csv)");
     }
   };
 
@@ -72,7 +61,7 @@ export const UploadScreen = ({ onFileSelect }: UploadScreenProps) => {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          accept=".xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
           onChange={handleFileChange}
           className="hidden"
         />
@@ -119,10 +108,10 @@ export const UploadScreen = ({ onFileSelect }: UploadScreenProps) => {
                 >
                   {isDragging
                     ? "Suelta el archivo aquí"
-                    : "Arrastra tu archivo Excel aquí o haz clic para seleccionar"}
+                    : "Arrastra tu archivo aquí o haz clic para seleccionar"}
                 </span>
                 <span className="block text-sm text-neutral-400 font-light">
-                  Formatos soportados: Banco Falabella y Banco Santander (.xlsx)
+                  Formatos soportados: Excel (.xlsx, .xls) o CSV (.csv)
                 </span>
               </div>
             </div>

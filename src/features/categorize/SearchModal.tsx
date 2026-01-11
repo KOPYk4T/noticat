@@ -10,6 +10,7 @@ interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (index: number) => void;
+  onTypeChange?: (index: number, type: "cargo" | "abono") => void;
   onMassEdit?: (selectedIds: number[]) => void;
   onMassDelete?: (selectedIds: number[]) => void;
 }
@@ -27,6 +28,7 @@ export const SearchModal = ({
   isOpen,
   onClose,
   onSelect,
+  onTypeChange,
   onMassEdit,
   onMassDelete,
 }: SearchModalProps) => {
@@ -539,19 +541,25 @@ export const SearchModal = ({
                             IA
                           </span>
                         )}
-                        <span
-                          className={`text-xs font-light px-2 py-0.5 rounded-full ${
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onTypeChange && actualIndex !== -1) {
+                              onTypeChange(actualIndex, transaction.type === "cargo" ? "abono" : "cargo");
+                            }
+                          }}
+                          className={`text-xs font-light px-2 py-0.5 rounded-full cursor-pointer transition-all hover:scale-105 ${
                             transaction.type === "cargo"
                               ? isSelected
-                                ? "bg-red-500/20 text-red-200"
-                                : "bg-red-50 text-red-600"
+                                ? "bg-red-500/20 text-red-200 hover:bg-red-500/30"
+                                : "bg-red-50 text-red-600 hover:bg-red-100"
                               : isSelected
-                              ? "bg-green-500/20 text-green-200"
-                              : "bg-green-50 text-green-600"
+                              ? "bg-green-500/20 text-green-200 hover:bg-green-500/30"
+                              : "bg-green-50 text-green-600 hover:bg-green-100"
                           }`}
                         >
                           {transaction.type === "cargo" ? "Gasto" : "Ingreso"}
-                        </span>
+                        </button>
                       </div>
                     </div>
                     <p

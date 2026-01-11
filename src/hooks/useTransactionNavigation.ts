@@ -1,20 +1,19 @@
 import { useEffect, useState, useRef } from "react";
 import type { Transaction } from "../shared/types";
 import { parseBankStatementExcel } from "../shared/services/excelParser";
-import {
-  suggestCategory,
-  detectRecurringTransaction,
-} from "../shared/services/categorySuggestions";
+import { suggestCategory, detectRecurringTransaction } from "../shared/services/categorySuggestions";
 import {
   categorizeBatchWithGroq,
-  // TODO: Habilitar cuando queramos usar Gemini
-  // categorizeBatchWithGemini,
   isGroqAvailable,
-  // isGeminiAvailable,
   type BatchCategoryItem,
+  parseCsvToStructure,
+  inferColumnMapping,
+  mapStructureToTransactions,
 } from "../shared/services";
+import { parseDate } from "../shared/utils/dateUtils";
+import type { FileStructure, ColumnMapping } from "../shared/types/fileMapping";
 
-type Step = "upload" | "processing" | "categorize" | "complete";
+type Step = "upload" | "processing" | "table-editor" | "mapping" | "categorize" | "complete";
 type SlideDirection = "left" | "right";
 
 interface UseTransactionNavigationReturn {
@@ -26,14 +25,24 @@ interface UseTransactionNavigationReturn {
   fileName: string;
   error: string | null;
   uploadedCount: number;
+  // Column mapping state
+  fileStructure?: FileStructure;
+  columnMapping?: ColumnMapping;
+  autoDetectedMapping?: boolean;
   handleFileSelect: (file: File) => void;
+  handleTableEditorConfirm: (structure: FileStructure) => void;
+  handleTableEditorCancel: () => void;
+  handleMappingConfirm: (mapping: ColumnMapping) => void;
+  handleMappingCancel: () => void;
   handleCategoryChange: (index: number, category: string) => void;
   handleRecurringChange: (index: number, isRecurring: boolean) => void;
+  handleTypeChange: (index: number, type: "cargo" | "abono") => void;
   handleDelete: (index: number) => void;
   handleRestore: (index: number) => void;
   handleMassDelete: (ids: number[]) => void;
   handleMassCategoryChange: (ids: number[], category: string) => void;
   handleMassRecurringChange: (ids: number[], isRecurring: boolean) => void;
+  handleMassTypeChange: (ids: number[], type: "cargo" | "abono") => void;
   handleUploadSuccess: (uploadedCount: number) => void;
   goNext: () => void;
   goPrev: () => void;
@@ -47,29 +56,8 @@ interface UseTransactionNavigationReturn {
   handleCancelReset: () => void;
 }
 
-// Función para ordenar transacciones por fecha (más antigua primero)
-const sortTransactionsByDate = (transactions: Transaction[]): Transaction[] => {
-  return [...transactions].sort((a, b) => {
-    // Parsear fechas en formato DD/MM/YYYY
-    const parseDate = (dateStr: string): number => {
-      const parts = dateStr.split("/");
-      if (parts.length === 3) {
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1; // Meses en JS son 0-indexed
-        const year = parseInt(parts[2], 10);
-        return new Date(year, month, day).getTime();
-      }
-      return 0;
-    };
-
-    const dateA = parseDate(a.date);
-    const dateB = parseDate(b.date);
-
-    // Orden ascendente (más antigua primero)
-    return dateA - dateB;
-  });
-};
-
+const sortTransactionsByDate = (transactions: Transaction[]): Transaction[] =>
+  [...transactions].sort((a, b) => parseDate(a.date) - parseDate(b.date));
 export const useTransactionNavigation = (): UseTransactionNavigationReturn => {
   const [step, setStep] = useState<Step>("upload");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -83,116 +71,186 @@ export const useTransactionNavigation = (): UseTransactionNavigationReturn => {
   const [nextId, setNextId] = useState(1);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
+  const [fileStructure, setFileStructure] = useState<FileStructure | undefined>();
+  const [columnMapping, setColumnMapping] = useState<ColumnMapping | undefined>();
+  const [autoDetectedMapping, setAutoDetectedMapping] = useState(false);
   const pendingResetRef = useRef<(() => void) | null>(null);
+
+  const processTransactions = async (
+    parsedTransactions: Array<{
+      date: string;
+      description: string;
+      amount: number;
+      type: "cargo" | "abono";
+    }>
+  ) => {
+    let idCounter = nextId;
+    const convertedTransactions: Transaction[] = [];
+    const transactionsNeedingAI: BatchCategoryItem[] = [];
+
+    for (let i = 0; i < parsedTransactions.length; i++) {
+      const t = parsedTransactions[i];
+      const suggestion = suggestCategory(t.description, t.type);
+
+      if (suggestion.confidence === "low" && isGroqAvailable()) {
+        transactionsNeedingAI.push({
+          description: t.description,
+          transactionType: t.type,
+          batchIndex: transactionsNeedingAI.length,
+          originalIndex: i,
+        });
+      }
+
+      const isRecurring = detectRecurringTransaction(t.description);
+
+      convertedTransactions.push({
+        id: idCounter++,
+        description: t.description,
+        amount: t.amount,
+        date: t.date,
+        type: t.type,
+        suggestedCategory: suggestion.category,
+        confidence: suggestion.confidence,
+        selectedCategory: suggestion.category,
+        isRecurring,
+      });
+    }
+
+    if (transactionsNeedingAI.length > 0) {
+      try {
+        const aiResults = await categorizeBatchWithGroq(transactionsNeedingAI);
+
+        for (const aiResult of aiResults) {
+          const item = transactionsNeedingAI.find(
+            (ai) => ai.batchIndex === aiResult.batchIndex
+          );
+          if (item) {
+            const transactionIndex = item.originalIndex;
+            const existingTransaction = convertedTransactions[transactionIndex];
+            convertedTransactions[transactionIndex] = {
+              ...existingTransaction,
+              suggestedCategory: aiResult.category,
+              confidence: "ai",
+              selectedCategory: aiResult.category,
+              isRecurring: existingTransaction.isRecurring,
+            };
+          }
+        }
+      } catch (error) {
+        console.error("Error categorizando transacciones:", error);
+      }
+    }
+
+    setNextId(idCounter);
+    setTransactions(sortTransactionsByDate(convertedTransactions));
+    setStep("categorize");
+  };
 
   const handleFileSelect = async (file: File) => {
     setFileName(file.name);
     setStep("processing");
     setError(null);
+    setFileStructure(undefined);
+    setColumnMapping(undefined);
+    setAutoDetectedMapping(false);
 
     try {
-      const result = await parseBankStatementExcel(file);
+      const fileName = file.name.toLowerCase();
+      const isCsv = fileName.endsWith(".csv");
+      const isExcel = fileName.endsWith(".xlsx") || fileName.endsWith(".xls");
 
-      if (!result.success || result.transactions.length === 0) {
-        setError(
-          result.error ||
-            "No se pudieron extraer transacciones del archivo Excel"
-        );
-        setStep("upload");
+      if (isExcel) {
+        try {
+          const result = await parseBankStatementExcel(file);
+          if (result.success && result.transactions.length > 0) {
+            await processTransactions(result.transactions);
+            return;
+          }
+        } catch (excelError) {}
+      }
+
+      if (isCsv || isExcel) {
+        const csvResult = await parseCsvToStructure(file);
+
+        if (!csvResult.success || !csvResult.structure) {
+          setError(
+            csvResult.error ||
+              "No se pudo procesar el archivo. Asegúrate de que tenga un formato válido."
+          );
+          setStep("upload");
+          return;
+        }
+
+        const inferred = inferColumnMapping(csvResult.structure);
+        setFileStructure(csvResult.structure);
+        setColumnMapping(inferred.mapping);
+        setAutoDetectedMapping(inferred.isAutoDetected);
+        setStep("mapping");
         return;
       }
 
-      let idCounter = nextId;
-      const convertedTransactions: Transaction[] = [];
-      const transactionsNeedingAI: BatchCategoryItem[] = [];
-
-      for (let i = 0; i < result.transactions.length; i++) {
-        const t = result.transactions[i];
-        const suggestion = suggestCategory(t.description, t.type);
-
-        if (suggestion.confidence === "low" && isGroqAvailable()) {
-          transactionsNeedingAI.push({
-            description: t.description,
-            transactionType: t.type,
-            batchIndex: transactionsNeedingAI.length,
-            originalIndex: i,
-          });
-        }
-
-        const isRecurring = detectRecurringTransaction(t.description);
-
-        convertedTransactions.push({
-          id: idCounter++,
-          description: t.description,
-          amount: t.amount,
-          date: t.date,
-          type: t.type,
-          suggestedCategory: suggestion.category,
-          confidence: suggestion.confidence,
-          selectedCategory: suggestion.category,
-          isRecurring,
-        });
-      }
-
-      if (transactionsNeedingAI.length > 0) {
-        try {
-          // TODO: En el futuro, podemos usar Gemini como alternativa o preferencia
-          // if (isGeminiAvailable()) {
-          //   try {
-          //     aiResults = await categorizeBatchWithGemini(transactionsNeedingAI);
-          //   } catch (geminiError) {
-          //     console.warn("Error con Gemini, intentando con Groq:", geminiError);
-          //     if (isGroqAvailable()) {
-          //       aiResults = await categorizeBatchWithGroq(transactionsNeedingAI);
-          //     } else {
-          //       throw geminiError;
-          //     }
-          //   }
-          // } else if (isGroqAvailable()) {
-          //   aiResults = await categorizeBatchWithGroq(transactionsNeedingAI);
-          // } else {
-          //   throw new Error("No hay servicios AI disponibles");
-          // }
-
-          // Por ahora solo usamos Groq
-          const aiResults = await categorizeBatchWithGroq(
-            transactionsNeedingAI
-          );
-
-          for (const aiResult of aiResults) {
-            const item = transactionsNeedingAI.find(
-              (ai) => ai.batchIndex === aiResult.batchIndex
-            );
-            if (item) {
-              const transactionIndex = item.originalIndex;
-              const existingTransaction =
-                convertedTransactions[transactionIndex];
-              convertedTransactions[transactionIndex] = {
-                ...existingTransaction,
-                suggestedCategory: aiResult.category,
-                confidence: "ai",
-                selectedCategory: aiResult.category,
-                isRecurring: existingTransaction.isRecurring,
-              };
-            }
-          }
-        } catch (error) {
-          console.error("Error categorizando transacciones:", error);
-        }
-      }
-
-      setNextId(idCounter);
-      // Ordenar transacciones por fecha antes de mostrarlas
-      setTransactions(sortTransactionsByDate(convertedTransactions));
-      setStep("categorize");
+      setError("Formato de archivo no soportado. Por favor, usa Excel (.xlsx, .xls) o CSV (.csv)");
+      setStep("upload");
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Error al procesar el archivo Excel"
+          : "Error al procesar el archivo"
       );
       setStep("upload");
     }
+  };
+
+  const handleMappingConfirm = async (mapping: ColumnMapping) => {
+    if (!fileStructure) {
+      setError("No hay estructura de archivo disponible");
+      setStep("upload");
+      return;
+    }
+
+    setColumnMapping(mapping);
+    setStep("processing");
+
+    try {
+      const transactions = mapStructureToTransactions(fileStructure, mapping);
+
+      if (transactions.length === 0) {
+        setError(
+          "No se pudieron extraer transacciones con el mapeo proporcionado. Por favor, verifica el mapeo de columnas."
+        );
+        setStep("mapping");
+        return;
+      }
+
+      await processTransactions(transactions);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Error al procesar las transacciones"
+      );
+      setStep("mapping");
+    }
+  };
+
+  const handleTableEditorConfirm = (structure: FileStructure) => {
+    setFileStructure(structure);
+    const inferred = inferColumnMapping(structure);
+    setColumnMapping(inferred.mapping);
+    setAutoDetectedMapping(inferred.isAutoDetected);
+    setStep("mapping");
+  };
+
+  const handleTableEditorCancel = () => {
+    setFileStructure(undefined);
+    setStep("upload");
+  };
+
+  const handleMappingCancel = () => {
+    setFileStructure(undefined);
+    setColumnMapping(undefined);
+    setAutoDetectedMapping(false);
+    setStep("upload");
   };
 
   const handleCategoryChange = (index: number, category: string) => {
@@ -206,6 +264,12 @@ export const useTransactionNavigation = (): UseTransactionNavigationReturn => {
   const handleRecurringChange = (index: number, isRecurring: boolean) => {
     setTransactions((prev) =>
       prev.map((t, i) => (i === index ? { ...t, isRecurring } : t))
+    );
+  };
+
+  const handleTypeChange = (index: number, type: "cargo" | "abono") => {
+    setTransactions((prev) =>
+      prev.map((t, i) => (i === index ? { ...t, type } : t))
     );
   };
 
@@ -311,6 +375,12 @@ export const useTransactionNavigation = (): UseTransactionNavigationReturn => {
     });
   };
 
+  const handleMassTypeChange = (ids: number[], type: "cargo" | "abono") => {
+    setTransactions((prev) => {
+      return prev.map((t) => (ids.includes(t.id) ? { ...t, type } : t));
+    });
+  };
+
   const goNext = () => {
     setCurrentIndex((prevIndex) => {
       if (prevIndex < transactions.length - 1) {
@@ -352,6 +422,9 @@ export const useTransactionNavigation = (): UseTransactionNavigationReturn => {
     setError(null);
     setNextId(1);
     setShowConfirmReset(false);
+    setFileStructure(undefined);
+    setColumnMapping(undefined);
+    setAutoDetectedMapping(false);
     pendingResetRef.current = null;
   };
 
@@ -387,142 +460,65 @@ export const useTransactionNavigation = (): UseTransactionNavigationReturn => {
   useEffect(() => {
     if (step !== "categorize") return;
 
-    const jumpForward = (amount: number = 10) => {
-      setCurrentIndex((prevIndex) => {
-        const newIndex = Math.min(prevIndex + amount, transactions.length - 1);
-        setSlideDirection("right");
-        return newIndex;
-      });
-    };
-
-    const jumpBackward = (amount: number = 10) => {
-      setCurrentIndex((prevIndex) => {
-        const newIndex = Math.max(prevIndex - amount, 0);
-        setSlideDirection("left");
-        return newIndex;
-      });
-    };
-
-    const toggleRecurring = () => {
-      if (transactions[currentIndex]) {
-        const current = transactions[currentIndex];
-        handleRecurringChange(currentIndex, !current.isRecurring);
-      }
-    };
-
-    const goToIndexInEffect = (index: number) => {
-      if (index >= 0 && index < transactions.length) {
-        const direction = index > currentIndex ? "right" : "left";
-        setSlideDirection(direction);
-        setCurrentIndex(index);
-      }
-    };
+    const isInputFocused = (target: EventTarget | null) =>
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLButtonElement ||
+      (target instanceof HTMLElement && target.isContentEditable);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in input/textarea
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        (e.target instanceof HTMLElement && e.target.isContentEditable)
-      ) {
-        return;
-      }
+      if (isInputFocused(e.target)) return;
 
-      // Shift + Arrow for fast navigation
+      const actions: Record<string, () => void> = {
+        "ArrowRight": () => {
+          if (currentIndex < transactions.length - 1) {
+            setSlideDirection("right");
+            setCurrentIndex(currentIndex + 1);
+          }
+        },
+        "ArrowLeft": () => {
+          if (currentIndex > 0) {
+            setSlideDirection("left");
+            setCurrentIndex(currentIndex - 1);
+          }
+        },
+        "Home": () => {
+          setSlideDirection("left");
+          setCurrentIndex(0);
+        },
+        "End": () => {
+          setSlideDirection("right");
+          setCurrentIndex(transactions.length - 1);
+        },
+        "r": () => {
+          const current = transactions[currentIndex];
+          if (current) handleRecurringChange(currentIndex, !current.isRecurring);
+        },
+        "R": () => {
+          const current = transactions[currentIndex];
+          if (current) handleRecurringChange(currentIndex, !current.isRecurring);
+        },
+        "Delete": () => handleDelete(currentIndex),
+        "Backspace": () => handleDelete(currentIndex),
+      };
+
       if (e.shiftKey && e.key === "ArrowRight") {
         e.preventDefault();
-        jumpForward(10);
-        return;
-      }
-      if (e.shiftKey && e.key === "ArrowLeft") {
+        setSlideDirection("right");
+        setCurrentIndex(Math.min(currentIndex + 10, transactions.length - 1));
+      } else if (e.shiftKey && e.key === "ArrowLeft") {
         e.preventDefault();
-        jumpBackward(10);
-        return;
-      }
-
-      // Home/End keys
-      if (e.key === "Home") {
+        setSlideDirection("left");
+        setCurrentIndex(Math.max(currentIndex - 10, 0));
+      } else if (actions[e.key]) {
         e.preventDefault();
-        goToIndexInEffect(0);
-        return;
-      }
-      if (e.key === "End") {
-        e.preventDefault();
-        goToIndexInEffect(transactions.length - 1);
-        return;
-      }
-
-      // R for toggle recurring
-      if (
-        (e.key === "r" || e.key === "R") &&
-        !e.metaKey &&
-        !e.ctrlKey &&
-        !(e.target instanceof HTMLInputElement) &&
-        !(e.target instanceof HTMLTextAreaElement) &&
-        !(e.target instanceof HTMLButtonElement) &&
-        !(e.target instanceof HTMLElement && e.target.isContentEditable)
-      ) {
-        e.preventDefault();
-        toggleRecurring();
-        return;
-      }
-
-      if (e.key === "ArrowRight") {
-        setCurrentIndex((prevIndex) => {
-          if (prevIndex < transactions.length - 1) {
-            setSlideDirection("right");
-            return prevIndex + 1;
-          }
-          return prevIndex;
-        });
-        return;
-      }
-      if (e.key === "ArrowLeft") {
-        setCurrentIndex((prevIndex) => {
-          if (prevIndex > 0) {
-            setSlideDirection("left");
-            return prevIndex - 1;
-          }
-          return prevIndex;
-        });
-        return;
-      }
-      if (e.key === "Delete" || e.key === "Backspace") {
-        setTransactions((prev) => {
-          const deleted = prev[currentIndex];
-          if (!deleted) return prev;
-
-          setDeletedTransactions((prevDeleted) => {
-            const exists = prevDeleted.some((t) => t.id === deleted.id);
-            if (exists) {
-              return prevDeleted;
-            }
-            return [...prevDeleted, deleted];
-          });
-
-          const newTransactions = prev.filter((_, i) => i !== currentIndex);
-
-          if (newTransactions.length === 0) {
-            setCurrentIndex(0);
-          } else if (currentIndex >= newTransactions.length) {
-            setCurrentIndex(newTransactions.length - 1);
-          }
-
-          return newTransactions;
-        });
-        return;
+        actions[e.key]();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    step,
-    transactions.length,
-    currentIndex,
-    transactions,
-    handleRecurringChange,
-  ]);
+  }, [step, transactions, currentIndex, handleRecurringChange, handleDelete]);
 
   // Prevenir pérdida de progreso al cerrar/recargar
   useEffect(() => {
@@ -558,14 +554,23 @@ export const useTransactionNavigation = (): UseTransactionNavigationReturn => {
     fileName,
     error,
     uploadedCount,
+    fileStructure,
+    columnMapping,
+    autoDetectedMapping,
     handleFileSelect,
+    handleTableEditorConfirm,
+    handleTableEditorCancel,
+    handleMappingConfirm,
+    handleMappingCancel,
     handleCategoryChange,
     handleRecurringChange,
+    handleTypeChange,
     handleDelete,
     handleRestore,
     handleMassDelete,
     handleMassCategoryChange,
     handleMassRecurringChange,
+    handleMassTypeChange,
     handleUploadSuccess,
     goNext,
     goPrev,

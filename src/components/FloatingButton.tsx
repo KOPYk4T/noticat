@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface FloatingButtonProps {
@@ -12,6 +12,9 @@ interface FloatingButtonProps {
   badge?: number;
   className?: string;
 }
+
+const COLLAPSED_WIDTH = 56;
+const MIN_EXPANDED_WIDTH = 140;
 
 export const FloatingButton = ({
   icon,
@@ -28,7 +31,6 @@ export const FloatingButton = ({
   const [prevBadge, setPrevBadge] = useState(badge);
   const [shouldBounce, setShouldBounce] = useState(false);
 
-  // Detectar cuando el badge aumenta para hacer bounce
   useEffect(() => {
     if (badge !== undefined && prevBadge !== undefined && badge > prevBadge) {
       setShouldBounce(true);
@@ -38,13 +40,10 @@ export const FloatingButton = ({
     setPrevBadge(badge);
   }, [badge, prevBadge]);
 
-  // Calcular el ancho expandido basado en el texto
-  const collapsedWidth = 56;
   const displayText = isLoading && loadingText ? loadingText : text;
-  // Estimación: ~8px por carácter + padding
-  const expandedWidth = Math.max(140, displayText.length * 8 + 60);
-
+  const expandedWidth = Math.max(MIN_EXPANDED_WIDTH, displayText.length * 8 + 60);
   const displayIcon = isLoading && loadingIcon ? loadingIcon : icon;
+  const isExpanded = isHovered || isLoading;
 
   return (
     <motion.button
@@ -54,25 +53,19 @@ export const FloatingButton = ({
       onMouseLeave={() => setIsHovered(false)}
       className={`relative flex items-center bg-white border-2 border-neutral-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${className}`}
       animate={{
-        borderRadius: isHovered || isLoading ? "12px" : "50%",
-        width: isHovered || isLoading ? expandedWidth : collapsedWidth,
-        justifyContent: isHovered || isLoading ? "flex-start" : "center",
-        paddingLeft: isHovered || isLoading ? "16px" : "0px",
+        borderRadius: isExpanded ? "12px" : "50%",
+        width: isExpanded ? expandedWidth : COLLAPSED_WIDTH,
+        justifyContent: isExpanded ? "flex-start" : "center",
+        paddingLeft: isExpanded ? "16px" : "0px",
         backgroundColor: isHovered && !disabled ? "#000000" : "#ffffff",
         borderColor: isHovered && !disabled ? "#000000" : "#e5e5e5",
       }}
       whileHover={!disabled ? { scale: 1.05 } : {}}
       whileTap={!disabled ? { scale: 0.95 } : {}}
-      transition={{
-        duration: 0.3,
-        ease: [0.16, 1, 0.3, 1],
-      }}
-      style={{
-        height: "56px",
-      }}
+      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      style={{ height: "56px" }}
       title={displayText}
     >
-      {/* Icono - a la izquierda */}
       <motion.div
         className="flex-shrink-0 relative z-10"
         animate={{
@@ -80,37 +73,25 @@ export const FloatingButton = ({
           scale: isHovered ? 1.1 : 1,
         }}
         transition={{
-          rotate: {
-            duration: isLoading ? 1 : 0.3,
-            repeat: isLoading ? Infinity : 0,
-            ease: "linear",
-          },
-          scale: {
-            duration: 0.3,
-            ease: [0.16, 1, 0.3, 1],
-          },
+          rotate: { duration: isLoading ? 1 : 0.3, repeat: isLoading ? Infinity : 0, ease: "linear" },
+          scale: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
         }}
       >
         <motion.div
-          animate={{
-            color: isHovered && !disabled ? "#ffffff" : "#000000",
-          }}
+          animate={{ color: isHovered && !disabled ? "#ffffff" : "#000000" }}
           transition={{ duration: 0.3 }}
         >
           {displayIcon}
         </motion.div>
       </motion.div>
 
-      {/* Badge con número (si existe) */}
       <AnimatePresence>
         {badge !== undefined && badge > 0 && (
           <motion.div
             initial={{ scale: 0 }}
             animate={{
               scale: 1,
-              ...(shouldBounce && {
-                y: [0, -8, 0, -4, 0],
-              }),
+              ...(shouldBounce && { y: [0, -8, 0, -4, 0] }),
             }}
             exit={{ scale: 0 }}
             transition={{
@@ -124,9 +105,8 @@ export const FloatingButton = ({
         )}
       </AnimatePresence>
 
-      {/* Texto - position absolute para no afectar el layout */}
       <AnimatePresence>
-        {(isHovered || isLoading) && (
+        {isExpanded && (
           <motion.span
             initial={{ opacity: 0, x: -5 }}
             animate={{ opacity: 1, x: 0 }}
@@ -143,7 +123,6 @@ export const FloatingButton = ({
         )}
       </AnimatePresence>
 
-      {/* Efecto de brillo sutil en hover */}
       <AnimatePresence>
         {isHovered && !disabled && !isLoading && (
           <motion.div
@@ -151,10 +130,7 @@ export const FloatingButton = ({
             initial={{ x: "-100%" }}
             animate={{ x: "100%" }}
             exit={{ x: "100%" }}
-            transition={{
-              duration: 0.6,
-              ease: "easeInOut",
-            }}
+            transition={{ duration: 0.6, ease: "easeInOut" }}
             style={{ pointerEvents: "none" }}
           />
         )}

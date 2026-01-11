@@ -3,6 +3,8 @@ import { UploadScreen } from "./features/upload";
 import { ProcessingScreen } from "./features/processing";
 import { CategorizeScreen } from "./features/categorize";
 import { SuccessScreen } from "./features/complete/SuccessScreen";
+import { ColumnMappingScreen } from "./features/mapping";
+import { TableEditor } from "./features/mapping/TableEditor";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 
 function App() {
@@ -15,7 +17,14 @@ function App() {
     fileName,
     error,
     uploadedCount,
+    fileStructure,
+    columnMapping,
+    autoDetectedMapping,
     handleFileSelect,
+    handleTableEditorConfirm,
+    handleTableEditorCancel,
+    handleMappingConfirm,
+    handleMappingCancel,
     handleCategoryChange,
     handleRecurringChange,
     handleDelete,
@@ -23,6 +32,8 @@ function App() {
     handleMassDelete,
     handleMassCategoryChange,
     handleMassRecurringChange,
+    handleMassTypeChange,
+    handleTypeChange,
     handleUploadSuccess,
     goNext,
     goPrev,
@@ -39,6 +50,28 @@ function App() {
 
   if (step === "processing") {
     return <ProcessingScreen fileName={fileName} error={error} />;
+  }
+
+  if (step === "table-editor" && fileStructure) {
+    return (
+      <TableEditor
+        structure={fileStructure}
+        onConfirm={handleTableEditorConfirm}
+        onCancel={handleTableEditorCancel}
+      />
+    );
+  }
+
+  if (step === "mapping" && fileStructure && columnMapping) {
+    return (
+      <ColumnMappingScreen
+        structure={fileStructure}
+        initialMapping={columnMapping}
+        autoDetected={autoDetectedMapping ?? false}
+        onConfirm={handleMappingConfirm}
+        onCancel={handleMappingCancel}
+      />
+    );
   }
 
   if (step === "categorize") {
@@ -58,18 +91,15 @@ function App() {
         onGoToIndex={goToIndex}
         onMassCategoryChange={handleMassCategoryChange}
         onMassRecurringChange={handleMassRecurringChange}
+        onMassTypeChange={handleMassTypeChange}
+        onTypeChange={handleTypeChange}
         onUploadSuccess={handleUploadSuccess}
       />
     );
   }
 
   if (step === "complete") {
-    return (
-      <SuccessScreen
-        uploadedCount={uploadedCount}
-        onReset={reset}
-      />
-    );
+    return <SuccessScreen uploadedCount={uploadedCount} onReset={reset} />;
   }
 
   return (

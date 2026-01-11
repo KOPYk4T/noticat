@@ -9,7 +9,7 @@ interface MassEditModalProps {
   isOpen: boolean;
   selectedTransactions: Transaction[];
   onClose: () => void;
-  onApply: (category?: string, isRecurring?: boolean) => void;
+  onApply: (category?: string, isRecurring?: boolean, type?: "cargo" | "abono") => void;
 }
 
 export const MassEditModal = ({
@@ -20,16 +20,19 @@ export const MassEditModal = ({
 }: MassEditModalProps) => {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [isRecurring, setIsRecurring] = useState<boolean | undefined>(undefined);
+  const [selectedType, setSelectedType] = useState<"cargo" | "abono" | undefined>(undefined);
 
   if (!isOpen) return null;
 
   const handleApply = () => {
     onApply(
       selectedCategory || undefined,
-      isRecurring !== undefined ? isRecurring : undefined
+      isRecurring !== undefined ? isRecurring : undefined,
+      selectedType
     );
     setSelectedCategory("");
     setIsRecurring(undefined);
+    setSelectedType(undefined);
   };
 
   const normalizeDescription = (desc: string) => {
@@ -81,6 +84,38 @@ export const MassEditModal = ({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-light text-neutral-600 mb-2">
+                Cambiar tipo de transacción
+              </label>
+              <div className="flex items-center gap-4">
+                <Button
+                  variant={selectedType === undefined ? "primary" : "ghost"}
+                  size="sm"
+                  onClick={() => setSelectedType(undefined)}
+                  className={selectedType === undefined ? "" : "bg-neutral-50"}
+                >
+                  Mantener
+                </Button>
+                <Button
+                  variant={selectedType === "cargo" ? "primary" : "ghost"}
+                  size="sm"
+                  onClick={() => setSelectedType("cargo")}
+                  className={selectedType === "cargo" ? "" : "bg-neutral-50"}
+                >
+                  Gasto
+                </Button>
+                <Button
+                  variant={selectedType === "abono" ? "primary" : "ghost"}
+                  size="sm"
+                  onClick={() => setSelectedType("abono")}
+                  className={selectedType === "abono" ? "bg-green-50 text-green-600 hover:bg-green-100" : "bg-neutral-50"}
+                >
+                  Ingreso
+                </Button>
+              </div>
             </div>
 
             <div>
