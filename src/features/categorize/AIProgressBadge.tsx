@@ -7,42 +7,7 @@ interface AIProgressBadgeProps {
   total: number;
 }
 
-const Sparkle = ({ delay = 0, x = 0, y = 0 }: { delay?: number; x?: number; y?: number }) => (
-  <motion.div
-    initial={{ scale: 0, opacity: 0, rotate: 0 }}
-    animate={{
-      scale: [0, 1.5, 0],
-      opacity: [0, 1, 0],
-      rotate: [0, 180],
-    }}
-    transition={{
-      duration: 0.7,
-      delay,
-      ease: "easeOut",
-    }}
-    className="absolute pointer-events-none"
-    style={{
-      left: `calc(50% + ${x}px)`,
-      top: `calc(50% + ${y}px)`,
-      transform: 'translate(-50%, -50%)',
-    }}
-  >
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="text-neutral-500"
-    >
-      <path
-        d="M7 0L8.082 4.221L12.303 5.303L8.082 6.385L7 10.606L5.918 6.385L1.697 5.303L5.918 4.221L7 0Z"
-        fill="currentColor"
-      />
-    </svg>
-  </motion.div>
-);
-
+//TODO: Animations and microinteractionss
 export const AIProgressBadge = ({ current, total }: AIProgressBadgeProps) => {
   const motionValue = useMotionValue(0);
   const spring = useSpring(motionValue, {
@@ -52,43 +17,27 @@ export const AIProgressBadge = ({ current, total }: AIProgressBadgeProps) => {
   });
 
   const [displayCount, setDisplayCount] = useState(0);
-  const [showSparkles, setShowSparkles] = useState(false);
 
   useMotionValueEvent(spring, "change", (latest) => {
     setDisplayCount(Math.round(latest));
   });
 
   useEffect(() => {
-    const prev = motionValue.get();
     motionValue.set(current);
-    
-    if (current > prev) {
-      setShowSparkles(true);
-      const timer = setTimeout(() => setShowSparkles(false), 800);
-      return () => clearTimeout(timer);
-    }
   }, [current, motionValue]);
 
-  const isComplete = current === total && total > 0;
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ 
-        opacity: 1, 
+      animate={{
+        opacity: 1,
         scale: 1,
       }}
       className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-100 border border-neutral-200 transition-colors duration-300 overflow-visible"
     >
-      {/* Sparkles */}
-      {showSparkles && (
-        <>
-          <Sparkle delay={0} x={-8} y={-8} />
-          <Sparkle delay={0.15} x={8} y={-8} />
-          <Sparkle delay={0.3} x={0} y={8} />
-        </>
-      )}
-      
+
+
       <Sparkles className="w-3 h-3 text-neutral-900" />
       <motion.span
         key={displayCount}
